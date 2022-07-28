@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { AnimationConfig, AnimationItem, AnimationConfigWithData } from "lottie-web";
+import type { AnimationItem, AnimationConfigWithData, RendererType } from "lottie-web";
 import lottie from "lottie-web";
 import type { AnimationItemAPI } from "lottie-api";
 import lottieApi from "lottie-api";
@@ -12,15 +12,18 @@ interface LottieEventListener {
 interface LottieAnimationControl {
   [property: string]: [number, number];
 }
+
+type ConfigOpts = AnimationConfigWithData<RendererType>;
+
 interface LottieProps {
   animationData: AnimationConfigWithData["animationData"];
 
   loop?: boolean;
   autoplay?: boolean;
 
-  renderer?: AnimationConfig["renderer"];
-  assetsPath: AnimationConfig["assetsPath"];
-  rendererSettings?: AnimationConfig["rendererSettings"];
+  renderer?: ConfigOpts["renderer"];
+  assetsPath?: ConfigOpts["assetsPath"];
+  rendererSettings?: ConfigOpts["rendererSettings"];
 
   animationControl?: LottieAnimationControl;
   height?: string | number;
@@ -38,15 +41,10 @@ interface LottieProps {
 }
 
 const getSize = (initial?: string | number) => {
-  let size;
-
   if (typeof initial === "number") {
-    size = `${initial}px`;
-  } else {
-    size = initial || "100%";
+    return `${initial}px`;
   }
-
-  return size;
+  return initial || "100%";
 };
 
 export const Lottie = ({
@@ -106,7 +104,7 @@ export const Lottie = ({
 
   useEffect(() => {
     if (ref.current) {
-      const aggregatedOptions: AnimationConfigWithData<"svg"> = {
+      const aggregatedOptions: AnimationConfigWithData<RendererType> = {
         container: ref.current,
         renderer,
         loop: loop !== false,
