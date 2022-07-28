@@ -1,6 +1,6 @@
 {
   "name": "lottie-react-component",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "license": "MIT",
   "author": "Jonluca DeCaro <lottie@jonlu.ca>",
   "description": "Render your lottie animations in React, with full typescript support",
