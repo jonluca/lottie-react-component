@@ -71,6 +71,17 @@ export const Lottie = ({
   const ref = useRef<HTMLDivElement>(null);
   const [animation, setAnimation] = useState<AnimationItem | null>(null);
   const [animationApi, setAnimationApi] = useState<AnimationItemAPI | null>(null);
+  const animationControlRef = useRef(animationControl);
+  const playbackStateRef = useRef<{
+    animation: AnimationItem;
+    isStopped: boolean;
+    isPaused: boolean;
+  } | null>(null);
+  const registeredControlsRef = useRef<{
+    api: AnimationItemAPI | null;
+    properties: Set<string>;
+  }>({ api: null, properties: new Set() });
+  animationControlRef.current = animationControl;
   const lottieStyles: React.CSSProperties = {
     width: getSize(width),
     height: getSize(height),
@@ -108,7 +119,7 @@ export const Lottie = ({
         container: ref.current,
         renderer,
         loop: loop !== false,
-        autoplay: autoplay !== false,
+        autoplay: autoplay !== false && !isStopped && !isPaused,
         animationData,
         rendererSettings,
         assetsPath,
@@ -117,16 +128,23 @@ export const Lottie = ({
       const newAnimation = lottie.loadAnimation(aggregatedOptions);
       newAnimation.setSpeed(speed);
       newAnimation.setDirection(direction || 1);
-      if (isStopped) {
-        newAnimation.stop();
-      } else {
-        newAnimation.play();
-      }
-      const newApi = lottieApi.createAnimationApi(newAnimation);
+      let apiInitialized = false;
+      const initializeApi = () => {
+        if (!apiInitialized) {
+          apiInitialized = true;
+          setAnimationApi(lottieApi.createAnimationApi(newAnimation));
+        }
+      };
+
+      newAnimation.addEventListener("DOMLoaded", initializeApi);
       setAnimation(newAnimation);
-      setAnimationApi(newApi);
+      setAnimationApi(null);
+      if (newAnimation.isLoaded) {
+        initializeApi();
+      }
 
       return () => {
+        newAnimation.removeEventListener("DOMLoaded", initializeApi);
         newAnimation.destroy();
       };
     }
@@ -135,21 +153,39 @@ export const Lottie = ({
   }, [animationData]);
 
   useEffect(() => {
-    if (isStopped) {
-      animation?.stop();
-    } else {
-      animation?.play();
+    if (!animation) {
+      return;
     }
-  }, [animation, isStopped]);
+
+    const previous = playbackStateRef.current;
+    const isInitialState = previous?.animation !== animation;
+    playbackStateRef.current = { animation, isStopped, isPaused };
+
+    if (isStopped) {
+      animation.stop();
+    } else if (isPaused) {
+      animation.pause();
+    } else if (!isInitialState) {
+      animation.play();
+    }
+  }, [animation, isPaused, isStopped]);
 
   useEffect(() => {
     if (animationControl && animationApi) {
-      const properties = Object.keys(animationControl);
+      if (registeredControlsRef.current.api !== animationApi) {
+        registeredControlsRef.current = { api: animationApi, properties: new Set() };
+      }
 
-      properties.forEach((property) => {
+      Object.keys(animationControl).forEach((property) => {
+        if (registeredControlsRef.current.properties.has(property)) {
+          return;
+        }
         const propertyPath = animationApi.getKeyPath(property);
-        const value = animationControl[property];
-        animationApi.addValueCallback(propertyPath, () => value);
+        animationApi.addValueCallback(
+          propertyPath,
+          (currentValue: [number, number]) => animationControlRef.current?.[property] ?? currentValue,
+        );
+        registeredControlsRef.current.properties.add(property);
       });
     }
   }, [animationApi, animationControl]);
@@ -161,12 +197,6 @@ export const Lottie = ({
   useEffect(() => {
     animation?.setSpeed(speed);
   }, [animation, speed]);
-
-  useEffect(() => {
-    if (Boolean(isPaused) !== Boolean(animation?.isPaused)) {
-      animation?.pause();
-    }
-  }, [animation, isPaused]);
 
   return (
     <div ref={ref} style={lottieStyles} title={title} role={ariaRole} aria-label={ariaLabel} tabIndex={tabIndex} />
